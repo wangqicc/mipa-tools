@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZIP文件处理 - 咪啪工具集</title>
+    <!-- 引入必要的库 -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 引入Inter字体 -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- 自定义配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        secondary: '#6C757D',
+                        success: '#28A745',
+                        danger: '#DC3545',
+                        warning: '#FFC107',
+                        info: '#17A2B8',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .file-item-hover:hover {
+                @apply bg-gray-50;
+            }
+            .text-highlight {
+                @apply bg-yellow-200 px-0.5 rounded font-semibold;
+            }
+            .card {
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+            .card:hover {
+                @apply transform -translate-y-1 shadow-lg;
+            }
+            .btn {
+                transition: all 0.2s ease;
+            }
+            .btn:hover {
+                @apply transform -translate-y-0.5;
+            }
+            .btn:active {
+                @apply transform translate-y-0;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <header class="bg-gradient-to-r from-primary to-blue-700 text-white shadow-lg">
+        <div class="container mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col md:flex-row justify-between items-center">
+            <a href="../index.html" class="text-2xl sm:text-3xl font-bold mb-4 md:mb-0 tracking-tight hover:text-blue-200 transition-all">
+                <i class="fa fa-wrench mr-2"></i>咪啪工具集
+            </a>
+            <!-- 导航栏简化，只保留标题返回首页功能 -->
+        </div>
+    </header>
+    <main class="container mx-auto px-4 sm:px-6 py-8 sm:py-12 flex-grow">
+        <!-- ZIP文件处理部分 -->
+        <section class="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-8 sm:mb-12 card">
+            <h2 class="text-xl sm:text-3xl font-bold mb-4 sm:mb-6 flex items-center text-gray-800">
+                <i class="fa fa-file-archive-o mr-3 text-primary text-2xl"></i>ZIP文件处理
+            </h2>
+            <!-- 上传ZIP -->
+            <div class="mb-4 sm:mb-2">
+                <label class="block text-gray-700 font-medium mb-2 sm:mb-3 text-sm sm:text-lg">上传ZIP文件</label>
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-3">
+                    <div class="flex-1">
+                        <input type="file" id="zipUpload" accept=".zip" 
+                            class="block w-full text-sm text-gray-500
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-lg file:border-0
+                            file:text-sm file:font-medium
+                            file:bg-primary/10 file:text-primary
+                            hover:file:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+                    </div>
+                    <button id="clearZipBtn" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition-colors hidden btn flex items-center justify-center whitespace-nowrap">
+                        <i class="fa fa-refresh mr-2"></i>清空
+                    </button>
+                </div>
+                <div id="uploadInfo" class="hidden p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-center">
+                    <i class="fa fa-info-circle text-primary mr-2"></i>
+                    <span id="uploadInfoText" class="text-sm text-gray-700"></span>
+                </div>
+            </div>
+
+            <!-- 文件列表 -->
+            <div id="fileListContainer" class="mb-6 hidden">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                            <h3 class="font-medium text-gray-700 text-lg">文件列表 <span class="text-sm text-gray-500">(共 <span id="totalFiles">0</span> 个文件，已选 <span id="selectedFilesCount">0</span> 个)</span></h3>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-3">
+                            <button id="toggleSelectBtn" class="px-4 py-2 text-sm bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors btn">
+                                <i class="fa fa-check-square-o mr-1"></i>全选
+                            </button>
+                            <button id="showSelectedOnlyBtn" class="px-4 py-2 text-sm bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors btn flex items-center gap-1">
+                                <i class="fa fa-square-o mr-1"></i>只显示已选文件
+                            </button>
+                            <input type="checkbox" id="showSelectedOnly" class="hidden" />
+                            <button id="extractBtn" class="px-5 py-2 text-sm bg-primary text-white rounded hover:bg-primary/90 transition-colors btn">
+                                <i class="fa fa-download mr-1"></i>导出选中
+                            </button>
+                        </div>
+                    </div>
+                <!-- 文件搜索框 - 默认隐藏，当文件数量超过10个时显示 -->
+                <div id="fileSearchContainer" class="mb-4 hidden">
+                    <div class="relative">
+                        <input type="text" id="fileSearchInput" placeholder="搜索文件名或路径..." 
+                            class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                        <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                </div>
+                
+                <div class="relative">
+                    <div id="fileList" class="max-h-[400px] overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100 bg-gray-50 p-2">
+                        <!-- 文件列表将动态生成 -->
+                    </div>
+                    <div id="zipLoading" class="absolute inset-0 bg-white/80 flex items-center justify-center hidden">
+                        <div class="flex flex-col items-center">
+                            <div class="animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-primary mb-2"></div>
+                            <span class="text-sm text-gray-600">处理中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 导出结果 -->
+            <div id="extractResult" class="hidden p-4 rounded-lg text-sm" role="alert"></div>
+        </section>
+    </main>
+
+    <footer class="bg-gradient-to-r from-gray-800 to-gray-900 text-white py-6 sm:py-8">
+        <div class="container mx-auto px-4 sm:px-6 text-center">
+            <p class="text-sm sm:text-lg font-medium">Log分析工具 - 专注于高效的日志文件处理和搜索</p>
+            <p class="mt-3 text-xs sm:text-base text-gray-300">使用 <i class="fa fa-heart text-danger"></i> 构建</p>
+        </div>
+    </footer>
+
+    <!-- 导航栏优化脚本 -->
+    <script>
+        // 优化导航栏点击体验，避免不必要的页面刷新
+        document.addEventListener('DOMContentLoaded', function() {
+            const logoLink = document.querySelector('header a[href="../index.html"]');
+            if (logoLink) {
+                logoLink.addEventListener('click', function(e) {
+                    // 获取当前页面的路径
+                    const currentPath = window.location.pathname;
+                    
+                    // 定义首页路径
+                    const homePaths = ['/', '/index.html'];
+                    
+                    // 如果当前已经在首页，阻止默认跳转，避免闪烁
+                    if (homePaths.includes(currentPath)) {
+                        e.preventDefault();
+                    }
+                });
+            }
+        });
+    </script>
+    <!-- 引入JavaScript模块 -->
+    <script src="../js/zip-handler.js"></script>
+</body>
+</html>
